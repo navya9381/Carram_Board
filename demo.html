@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realistic 4-Player Carrom Board</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: #f0f2f5;
+      color: #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #111;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .app-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+      align-items: flex-start;
+      max-width: 1200px;
+      width: 100%;
+    }
+
+    /* Board Area */
+    .board-wrapper {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.08);
+      border: 1px solid #e1e4e8;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 12px;
+      cursor: grab;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Control Panel */
+    .widget-panel {
+      flex: 1;
+      min-width: 320px;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid #e1e4e8;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+    }
+
+    .card h3 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #666;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #f0f2f5;
+      padding-bottom: 6px;
+    }
+
+    /* 4-Player Scoreboard Grid */
+    .player-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .player-card {
+      background: #f8f9fa;
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .player-card.active {
+      background: #ffffff;
+      border-color: #228be6;
+      box-shadow: 0 4px 12px rgba(34, 139, 230, 0.18);
+    }
+
+    .player-card.active::before {
+      content: 'TURN';
+      position: absolute;
+      top: -8px;
+      right: 10px;
+      background: #228be6;
+      color: #fff;
+      font-size: 0.6rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    .player-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #495057;
+      margin-bottom: 4px;
+    }
+
+    .player-score {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #212529;
+    }
+
+    /* Message Banner */
+    .turn-banner {
+      background: #e7f5ff;
+      border: 1px solid #a5d8ff;
+      color: #1864ab;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* Controls */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .control-group label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #495057;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #228be6;
+      cursor: pointer;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #212529;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #343a40;
+    }
+
+    /* Pocketed Inventory */
+    .inventory {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-height: 24px;
+      align-items: center;
+    }
+
+    .piece-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: inset 0 -2px 4px rgba(0,0,0,0.3);
+    }
+    .dot-white { background: #fff8e7; border: 1px solid #ccc; }
+    .dot-black { background: #2c2c2c; }
+    .dot-red   { background: #d63031; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Realistic 4-Player Carrom</h1>
+    <p>4 Players • Automatic Turn Switching on Miss • Slingshot Aiming</p>
+  </header>
+
+  <div class="app-container">
+    <!-- Board -->
+    <div class="board-wrapper">
+      <canvas id="carromCanvas" width="600" height="600"></canvas>
+    </div>
+
+    <!-- Right Side Widgets -->
+    <div class="widget-panel">
+      
+      <!-- Current Status Banner -->
+      <div class="turn-banner" id="statusBanner">
+        Player 1's Turn - Drag striker to aim & shoot!
+      </div>
+
+      <!-- 4 Players Scorecard -->
+      <div class="card">
+        <h3>Scoreboard</h3>
+        <div class="player-grid">
+          <div class="player-card active" id="pCard-0">
+            <div class="player-name">Player 1 (Bottom)</div>
+            <div class="player-score" id="pScore-0">0</div>
+          </div>
+          <div class="player-card" id="pCard-1">
+            <div class="player-name">Player 2 (Left)</div>
+            <div class="player-score" id="pScore-1">0</div>
+          </div>
+          <div class="player-card" id="pCard-2">
+            <div class="player-name">Player 3 (Top)</div>
+            <div class="player-score" id="pScore-2">0</div>
+          </div>
+          <div class="player-card" id="pCard-3">
+            <div class="player-name">Player 4 (Right)</div>
+            <div class="player-score" id="pScore-3">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fine Tuning Widget -->
+      <div class="card">
+        <h3>Position Fine-Tuning</h3>
+        <div class="control-group">
+          <label for="posSlider">Baseline Slide <span id="posVal">0</span></label>
+          <input type="range" id="posSlider" min="-130" max="130" value="0">
+        </div>
+        <button id="resetBtn">Restart Match</button>
+      </div>
+
+      <!-- Pocketed Coins List -->
+      <div class="card">
+        <h3>Pocketed Coins</h3>
+        <div class="inventory" id="pocketedBox"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('carromCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const SIZE = 600;
+    const FRAME_MARGIN = 40;
+    const PLAY_AREA_MIN = FRAME_MARGIN;
+    const PLAY_AREA_MAX = SIZE - FRAME_MARGIN;
+    const POCKET_RADIUS = 26;
+    const FRICTION = 0.984;
+
+    // Player Configuration (0: Bottom, 1: Left, 2: Top, 3: Right)
+    const PLAYERS = [
+      { id: 0, name: "Player 1 (Bottom)", angle: 0, score: 0 },
+      { id: 1, name: "Player 2 (Left)",   angle: Math.PI / 2, score: 0 },
+      { id: 2, name: "Player 3 (Top)",    angle: Math.PI, score: 0 },
+      { id: 3, name: "Player 4 (Right)",  angle: -Math.PI / 2, score: 0 }
+    ];
+
+    let currentPlayerIndex = 0;
+    let coinsPocketedThisTurn = 0;
+    let shotTakenInTurn = false;
+    let isMoving = false;
+    let pocketedCoins = [];
+
+    // Drag / Slingshot State
+    let isDragging = false;
+    let dragMode = 'none'; // 'position' or 'aim'
+    let currentPointer = { x: 0, y: 0 };
+
+    // Elements
+    const statusBanner = document.getElementById('statusBanner');
+    const posSlider = document.getElementById('posSlider');
+    const posVal = document.getElementById('posVal');
+    const pocketedBox = document.getElementById('pocketedBox');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // Piece Class with realistic shading
+    class Piece {
+      constructor(x, y, radius, type) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.type = type; // 'white', 'black', 'red', 'striker'
+        this.vx = 0;
+        this.vy = 0;
+        this.inPocket = false;
+      }
+
+      draw() {
+        if (this.inPocket) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+
+        // Gradient & Shading based on type
+        let grad = ctx.createRadialGradient(
+          this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.1,
+          this.x, this.y, this.radius
+        );
+
+        if (this.type === 'white') {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(0.8, '#f1f2f6');
+          grad.addColorStop(1, '#c8d6e5');
+        } else if (this.type === 'black') {
+          grad.addColorStop(0, '#576574');
+          grad.addColorStop(0.8, '#222f3e');
+          grad.addColorStop(1, '#0f141a');
+        } else if (this.type === 'red') {
+          grad.addColorStop(0, '#ff6b6b');
+          grad.addColorStop(0.8, '#ee5253');
+          grad.addColorStop(1, '#10ac84' ? '#a71d2a' : '#ee5253');
+        } else if (this.type === 'striker') {
+          grad.addColorStop(0, '#48dbfb');
+          grad.addColorStop(0.8, '#0abde3');
+          grad.addColorStop(1, '#018abd');
+        }
+
+        ctx.fillStyle = grad;
+        ctx.shadowColor = 'rgba(0,0,0,0.25)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 3;
+        ctx.fill();
+
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = this.type === 'striker' ? '#00709e' : 'rgba(0,0,0,0.4)';
+        ctx.stroke();
+
+        // Inner Wooden / Acrylic Ring Detailing
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.45, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      update() {
+        if (this.inPocket) return;
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        this.vx *= FRICTION;
+        this.vy *= FRICTION;
+
+        if (Math.abs(this.vx) < 0.04) this.vx = 0;
+        if (Math.abs(this.vy) < 0.04) this.vy = 0;
+
+        // Realistic Wall Bounce
+        const min = PLAY_AREA_MIN + this.radius;
+        const max = PLAY_AREA_MAX - this.radius;
+
+        if (this.x < min) { this.x = min; this.vx *= -0.92; }
+        if (this.x > max) { this.x = max; this.vx *= -0.92; }
+        if (this.y < min) { this.y = min; this.vy *= -0.92; }
+        if (this.y > max) { this.y = max; this.vy *= -0.92; }
+      }
+    }
+
+    let pieces = [];
+    let striker;
+
+    function initGame() {
+      pieces = [];
+      pocketedCoins = [];
+      PLAYERS.forEach(p => p.score = 0);
+      currentPlayerIndex = 0;
+      coinsPocketedThisTurn = 0;
+      shotTakenInTurn = false;
+      posSlider.value = 0;
+
+      const cx = SIZE / 2;
+      const cy = SIZE / 2;
+
+      // Center Queen
+      pieces.push(new Piece(cx, cy, 13, 'red'));
+
+      // Inner & Outer Ring of Carrom Men
+      const rInner = 28;
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        const type = i % 2 === 0 ? 'white' : 'black';
+        pieces.push(new Piece(cx + Math.cos(a) * rInner, cy + Math.sin(a) * rInner, 13, type));
+      }
+
+      const rOuter = 54;
+      for (let i = 0; i < 12; i++) {
+        const a = (i * Math.PI) / 6;
+        const type = i % 2 === 0 ? 'black' : 'white';
+        pieces.push(new Piece(cx + Math.cos(a) * rOuter, cy + Math.sin(a) * rOuter, 13, type));
+      }
+
+      striker = new Piece(cx, 470, 17, 'striker');
+      positionStrikerForPlayer(0);
+      updateUI();
+    }
+
+    // Position striker according to player turn (0: Bottom, 1: Left, 2: Top, 3: Right)
+    function positionStrikerForPlayer(playerIdx) {
+      const offset = parseFloat(posSlider.value);
+      const cx = SIZE / 2;
+      const cy = SIZE / 2;
+      const baseDist = 220; // Distance from board center to baseline
+
+      switch(playerIdx) {
+        case 0: // Bottom
+          striker.x = cx + offset;
+          striker.y = cy + baseDist;
+          break;
+        case 1: // Left
+          striker.x = cx - baseDist;
+          striker.y = cy + offset;
+          break;
+        case 2: // Top
+          striker.x = cx - offset;
+          striker.y = cy - baseDist;
+          break;
+        case 3: // Right
+          striker.x = cx + baseDist;
+          striker.y = cy - offset;
+          break;
+      }
+      striker.vx = 0;
+      striker.vy = 0;
+      striker.inPocket = false;
+    }
+
+    // Pass turn to next member automatically
+    function nextTurn(reason = "") {
+      currentPlayerIndex = (currentPlayerIndex + 1) % 4;
+      coinsPocketedThisTurn = 0;
+      shotTakenInTurn = false;
+      posSlider.value = 0;
+      positionStrikerForPlayer(currentPlayerIndex);
+      updateUI();
+
+      if (reason) {
+        statusBanner.innerText = `${reason} ➔ ${PLAYERS[currentPlayerIndex].name}'s Turn`;
+      }
+    }
+
+    // Draw Realistic Wooden Board Graphics
+    function drawBoard() {
+      // Outer Frame / Dark Rosewood
+      ctx.fillStyle = '#2b1704';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      // Wooden Inner Bevel
+      ctx.fillStyle = '#4a2800';
+      ctx.fillRect(15, 15, SIZE - 30, SIZE - 30);
+
+      // Felt Playing Surface
+      ctx.fillStyle = '#f7eedd';
+      ctx.fillRect(PLAY_AREA_MIN, PLAY_AREA_MIN, PLAY_AREA_MAX - PLAY_AREA_MIN, PLAY_AREA_MAX - PLAY_AREA_MIN);
+
+      // Inner Border Line
+      ctx.strokeStyle = '#8c6d46';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(PLAY_AREA_MIN + 10, PLAY_AREA_MIN + 10, SIZE - 100, SIZE - 100);
+
+      // 4 Pockets with Mesh Shadows
+      const pockets = [
+        { x: PLAY_AREA_MIN + 12, y: PLAY_AREA_MIN + 12 },
+        { x: PLAY_AREA_MAX - 12, y: PLAY_AREA_MIN + 12 },
+        { x: PLAY_AREA_MIN + 12, y: PLAY_AREA_MAX - 12 },
+        { x: PLAY_AREA_MAX - 12, y: PLAY_AREA_MAX - 12 }
+      ];
+
+      pockets.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, POCKET_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = '#111111';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#63472b';
+        ctx.stroke();
+      });
+
+      // Center Concentric Design
+      const cx = SIZE / 2;
+      const cy = SIZE / 2;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 42, 0, Math.PI * 2);
+      ctx.strokeStyle = '#d00000';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#d00000';
+      ctx.fill();
+
+      // 4 Player Baselines
+      drawBaseline(cx, cy + 220, 0);                 // Bottom
+      drawBaseline(cx - 220, cy, Math.PI / 2);       // Left
+      drawBaseline(cx, cy - 220, Math.PI);           // Top
+      drawBaseline(cx + 220, cy, -Math.PI / 2);      // Right
+
+      // Draw Slingshot Visualizer during active drag
+      if (isDragging && dragMode === 'aim' && !isMoving) {
+        const dx = striker.x - currentPointer.x;
+        const dy = striker.y - currentPointer.y;
+
+        // Pullback Line
+        ctx.beginPath();
+        ctx.moveTo(striker.x, striker.y);
+        ctx.lineTo(currentPointer.x, currentPointer.y);
+        ctx.strokeStyle = 'rgba(214, 48, 49, 0.7)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Target Shot Trajectory Line
+        ctx.beginPath();
+        ctx.moveTo(striker.x, striker.y);
+        ctx.lineTo(striker.x + dx * 2.5, striker.y + dy * 2.5);
+        ctx.strokeStyle = '#0984e3';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    function drawBaseline(x, y, rotation) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+
+      ctx.beginPath();
+      ctx.moveTo(-130, 0);
+      ctx.lineTo(130, 0);
+      ctx.strokeStyle = '#a88454';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Baseline Circles
+      [-130, 130].forEach(bx => {
+        ctx.beginPath();
+        ctx.arc(bx, 0, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = '#d00000';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
+
+    // Elastic Collision Physics
+    function handleCollisions() {
+      const all = [...pieces, striker];
+
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          let p1 = all[i];
+          let p2 = all[j];
+
+          if (p1.inPocket || p2.inPocket) continue;
+
+          let dx = p2.x - p1.x;
+          let dy = p2.y - p1.y;
+          let dist = Math.hypot(dx, dy);
+          let minDist = p1.radius + p2.radius;
+
+          if (dist < minDist) {
+            let overlap = 0.5 * (minDist - dist);
+            let nx = dx / (dist || 1);
+            let ny = dy / (dist || 1);
+
+            p1.x -= nx * overlap;
+            p1.y -= ny * overlap;
+            p2.x += nx * overlap;
+            p2.y += ny * overlap;
+
+            let kx = p1.vx - p2.vx;
+            let ky = p1.vy - p2.vy;
+            let p = 2 * (nx * kx + ny * ky) / 2;
+
+            p1.vx -= p * nx;
+            p1.vy -= p * ny;
+            p2.vx += p * nx;
+            p2.vy += p * ny;
+          }
+        }
+      }
+
+      // Check Pockets
+      const pockets = [
+        { x: PLAY_AREA_MIN + 12, y: PLAY_AREA_MIN + 12 },
+        { x: PLAY_AREA_MAX - 12, y: PLAY_AREA_MIN + 12 },
+        { x: PLAY_AREA_MIN + 12, y: PLAY_AREA_MAX - 12 },
+        { x: PLAY_AREA_MAX - 12, y: PLAY_AREA_MAX - 12 }
+      ];
+
+      all.forEach(p => {
+        if (p.inPocket) return;
+
+        pockets.forEach(pocket => {
+          if (Math.hypot(p.x - pocket.x, p.y - pocket.y) < POCKET_RADIUS) {
+            p.inPocket = true;
+            p.vx = 0;
+            p.vy = 0;
+
+            if (p.type === 'striker') {
+              // Striker Foul Penalty (-5 pts & turn ends)
+              PLAYERS[currentPlayerIndex].score = Math.max(0, PLAYERS[currentPlayerIndex].score - 5);
+              statusBanner.innerText = `FOUL! Striker Pocketed by ${PLAYERS[currentPlayerIndex].name}`;
+            } else {
+              // Pocketed Coin Logic
+              let pts = p.type === 'red' ? 50 : (p.type === 'white' ? 20 : 10);
+              PLAYERS[currentPlayerIndex].score += pts;
+              coinsPocketedThisTurn++;
+              pocketedCoins.push(p.type);
+            }
+            updateUI();
+          }
+        });
+      });
+    }
+
+    // Monitor board motion to trigger automatic turn switching
+    function checkBoardMotion() {
+      const all = [...pieces, striker];
+      let currentlyMoving = all.some(p => Math.hypot(p.vx, p.vy) > 0.05);
+
+      // Shot just completed and all pieces stopped
+      if (shotTakenInTurn && isMoving && !currentlyMoving) {
+        if (striker.inPocket) {
+          nextTurn("Striker Foul!");
+        } else if (coinsPocketedThisTurn > 0) {
+          // Extra turn granted for scoring!
+          statusBanner.innerText = `Coin Sunk! ${PLAYERS[currentPlayerIndex].name} gets another turn!`;
+          coinsPocketedThisTurn = 0;
+          shotTakenInTurn = false;
+          posSlider.value = 0;
+          positionStrikerForPlayer(currentPlayerIndex);
+        } else {
+          // No coins pocketed -> AUTOMATIC TURN SWITCH
+          nextTurn("No coin hit into pocket.");
+        }
+      }
+
+      isMoving = currentlyMoving;
+    }
+
+    function updateUI() {
+      // Active player highlighting
+      PLAYERS.forEach((p, idx) => {
+        const card = document.getElementById(`pCard-${idx}`);
+        const scoreElem = document.getElementById(`pScore-${idx}`);
+
+        scoreElem.innerText = p.score;
+        if (idx === currentPlayerIndex) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
+      });
+
+      posVal.innerText = posSlider.value;
+
+      // Render pocketed list
+      pocketedBox.innerHTML = '';
+      pocketedCoins.forEach(t => {
+        const d = document.createElement('span');
+        d.className = `piece-dot dot-${t}`;
+        pocketedBox.appendChild(d);
+      });
+    }
+
+    function getCanvasPos(evt) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+      const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+
+      return {
+        x: (clientX - rect.left) * (SIZE / rect.width),
+        y: (clientY - rect.top) * (SIZE / rect.height)
+      };
+    }
+
+    // Event Handlers for Dragging & Flicking
+    function handlePointerDown(evt) {
+      if (isMoving || striker.inPocket || shotTakenInTurn) return;
+
+      const pos = getCanvasPos(evt);
+      const dist = Math.hypot(pos.x - striker.x, pos.y - striker.y);
+
+      if (dist < striker.radius + 15) {
+        isDragging = true;
+        currentPointer = pos;
+        dragMode = 'aim';
+      }
+    }
+
+    function handlePointerMove(evt) {
+      if (!isDragging) return;
+      evt.preventDefault();
+      currentPointer = getCanvasPos(evt);
+    }
+
+    function handlePointerUp() {
+      if (!isDragging) return;
+
+      if (dragMode === 'aim') {
+        const dx = striker.x - currentPointer.x;
+        const dy = striker.y - currentPointer.y;
+        const pullDist = Math.hypot(dx, dy);
+
+        if (pullDist > 12) {
+          const power = Math.min(pullDist * 0.18, 22);
+          const angle = Math.atan2(dy, dx);
+
+          striker.vx = Math.cos(angle) * power;
+          striker.vy = Math.sin(angle) * power;
+
+          shotTakenInTurn = true;
+          isMoving = true;
+          statusBanner.innerText = `${PLAYERS[currentPlayerIndex].name} took a shot...`;
+        }
+      }
+
+      isDragging = false;
+      dragMode = 'none';
+    }
+
+    // Attach Event Listeners
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+    window.addEventListener('touchend', handlePointerUp);
+
+    posSlider.addEventListener('input', () => {
+      if (!isMoving && !shotTakenInTurn) {
+        positionStrikerForPlayer(currentPlayerIndex);
+        posVal.innerText = posSlider.value;
+      }
+    });
+
+    resetBtn.addEventListener('click', initGame);
+
+    // Main Engine Loop
+    function loop() {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      drawBoard();
+
+      // Render & Update Objects
+      pieces.forEach(p => { p.update(); p.draw(); });
+      striker.update();
+      striker.draw();
+
+      handleCollisions();
+      checkBoardMotion();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Launch
+    initGame();
+    loop();
+  </script>
+</body>
+</html>
